@@ -1,0 +1,136 @@
+---
+title: "Regression Analysis Project "
+author: "Brian Mwangi Kimotho"
+date: "`r Sys.Date()`"
+output:
+  html_document: default
+  word_document: default
+---
+Importing the dataset:
+```{r}
+library(rio)
+taxi = import("C:/Users/bryan/OneDrive/Documents/USF/Courses/Weekend projects/Taxi Dataset.xlsx")
+```
+
+Converting payment_type variable from a character variable to a factor variable: 
+```{r}
+attach(taxi)
+colnames(taxi)=tolower(make.names(colnames(taxi)))
+taxi$payment_type= as.factor(taxi$payment_type)
+str(taxi)
+```
+
+For purposes of clear comparison analysis, I decide to create two subsets, a primary dataset and a secondary dataset, from the main dataset.  Primary dataset has population size n= 500 and secondary dataset n=800.
+
+```{r}
+set.seed(84234288)
+taxi_sample1=taxi[sample(1:nrow(taxi),500),]
+set.seed(84234288)
+taxi_sample2=taxi[sample(1:nrow(taxi),800),]
+```
+
+To identify any early correlations, I created a scatterplot matrix of the continuous variables. 
+```{r}
+taxi_sample1cont=subset(taxi_sample1,select=c("trip_seconds","trip_miles",
+                                    "fare","tips", "trip_total"))
+plot(taxi_sample1cont,pch=19,
+     main="Continuous variables plot")                              
+```
+
+Similarly, I used numbers and ellipses to give further details on the correlations between the continuous variables.
+
+```{r}
+library(corrplot)
+taxi1_corrrplot=cor(taxi_sample1cont)
+taxi1_corrrplot
+corrplot(taxi1_corrrplot,method="number")
+corrplot(taxi1_corrrplot,method="ellipse")
+```
+
+I used my primary data set to conduct a full regression analysis using trip_total as the dependent and all other variables (except for taxi_id) as independents. After the regression, I observed the impact each variable had on price, if any, and whether or not the variable's impact is significant.
+
+```{r}
+taxi_sample1model=lm(trip_total~.-taxi_id, data=taxi_sample1)
+summary(taxi_sample1model)
+```
+
+trip_seconds, trip_miles, fare, tips variables all have a significant impact on the model due to a p-value of less than 0.05. The payment_type variable has a lower significance, as shown by the high p-value of 0.43
+
+
+Furthermore, using my primary dataset, I tried to find a regression model with the best fit to y=trip_total using any or all of the remaining variables (except for taxi_id), using my correlation analysis as a guide for this.
+
+```{r}
+taxi_sample1model_partial= lm(trip_total~.-taxi_id-payment_type, data= taxi_sample1)
+summary(taxi_sample1model_partial)
+```
+
+I chose to use the continuous variables in my model, and excluded taxi_id since it is used as an identifier for the taxi, and also excluded payment_type variable as it had little sigificance on my model based on my previous full regression, having a p-value of 0.43.
+
+Each 1000 seconds change in the trip led to a reduction in price by  1.16 dollars
+Each 100 miles change in the trip led to an increase in price by  16.5 dollars
+Each fare change in the trip led to an increase in price by  1.15 dollars
+Each tips change in the trip led to an increase in price by  0.99 dollars
+
+
+We must consider whether our regression analysis followed the LINE assumptions principles.
+#Assumptions of Regression
+#Linearity
+```{r}
+plot(taxi_sample1$trip_total,taxi_sample1model_partial$fitted.values,
+     pch=19,main="Actuals v. Fitteds")
+abline(0,1,col="red",lwd=3)
+```
+
+The model exhibits a linear relationship as shown by the plot.
+
+#Normality
+```{r}
+qqnorm(taxi_sample1model_partial$residuals,pch=19,
+       main="Normality Plot")
+qqline(taxi_sample1model_partial$residuals,lwd=3,col="red")
+```
+
+```{r}
+hist(taxi_sample1model_partial$residuals,ylim = c(0, 0.20), col="red",
+     main="Residuals",
+     probability=TRUE)
+curve(dnorm(x,mean(taxi_sample1model_partial$residuals),
+            sd(taxi_sample1model_partial$residuals)),
+      from=min(taxi_sample1model_partial$residuals),
+      to=max(taxi_sample1model_partial$residuals),
+      lwd=3,col="blue",add=TRUE)
+```
+
+From both the qqplot and histogram, majority of the points exhibit normal distrivution, with a few outliers
+
+# Equality of Variances
+```{r}
+plot(taxi_sample1model_partial$fitted.values,rstandard(taxi_sample1model_partial),
+     pch=19,main="Equality of Variances")
+abline(0,0,lwd=3,col="red")
+```
+
+Ther is no outright pattern, thus the model generally exhibits an equality of variances.
+
+
+I also decided to use VIF to assess whether multicollinearity was present in the model.
+
+```{r}
+library(car)
+vif(taxi_sample1model_partial)
+```
+
+Based on VIF output, the fare variable has a high value of 11.87, thus might already be explained by other variables in the model. The trip_seconds, trip_miles and tips variables exhibit little multicollinearity, based on their lower than 5 VIF values, thus can be used in the model.
+
+
+Using our secondary dataset, I parameterized a model with the same set of independent variables as used in the earlier model, so as to test whether this model is also an acceptable fit to the different set of data.
+
+
+```{r}
+taxi_sample2model_partial= lm(trip_total~.-taxi_id-payment_type, data= taxi_sample2)
+summary(taxi_sample2model_partial)
+```
+
+The new model based on the second sample is also an acceptable fit to the different set of data. This is shown by the small P-values of all the independent variable coefficients. Similarly, the model explains about 98% of the data, as shown by the R-squared and adjusted R squared.
+
+
